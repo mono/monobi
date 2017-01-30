@@ -1,11 +1,8 @@
 ﻿<Properties StartupConfiguration="{93B4230D-A576-48DE-A14A-98287253A8ED}|Default">
-  <MonoDevelop.Ide.Workbench ActiveDocument="MonoBI/Program.cs">
+  <MonoDevelop.Ide.Workbench ActiveDocument="MonoBI/Build.cs">
     <Files>
-      <File FileName="MonoBI/Job.cs" Line="12" Column="31" />
-      <File FileName="MonoBI/BuildReference.cs" Line="10" Column="3" />
-      <File FileName="MonoBI/Build.cs" Line="39" Column="3" />
-      <File FileName="MonoBI/Program.cs" Line="165" Column="4" NotebookId="1" />
-      <File FileName="MonoBI/Failure.cs" Line="6" Column="26" NotebookId="1" />
+      <File FileName="MonoBI/Build.cs" Line="16" Column="23" />
+      <File FileName="MonoBI/Program.cs" Line="80" Column="5" NotebookId="1" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|x86" />

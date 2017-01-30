@@ -11,8 +11,9 @@ namespace MonoBI
 
 		public string PlatformName;
 
-		[JsonProperty("id", Required = Required.Always)]
-		public int Id;
+		public int BuildId;
+
+		public string BuildURL;
 
 		[JsonProperty("result")]
 		public string Result;
@@ -21,18 +22,10 @@ namespace MonoBI
 		[JsonConverter(typeof(MillisecondsTimestampDateTimeConverter))]
 		public DateTime DateTime;
 
-		[JsonProperty("url", Required = Required.Always)]
-		public string URL;
-
-		[JsonProperty("building", Required = Required.Always)]
-		public bool Building;
-
-		public List<Failure> Failures = new List<Failure>();
-
 		public override string ToString()
 		{
-			return string.Format("[Build: JobName={0}, PlatformName={1}, Id={2}, Result={3}, DateTime={4}, URL={5}]",
-								 JobName, PlatformName, Id, Result, DateTime, Uri.EscapeDataString(URL));
+			return string.Format("[Build: JobName={0}, PlatformName={1}, Id={2}, URL={3}, Result={4}, DateTime={5}]",
+								 JobName, PlatformName, BuildId, BuildURL, Result, DateTime);
 		}
 
 		class MillisecondsTimestampDateTimeConverter : JsonConverter
