@@ -1,170 +1,225 @@
 ﻿
 using System;
 using System.Collections.Generic;
-using System.Net;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System.Data;
 using System.Data.SqlClient;
+using System.Linq;
+using System.Net;
+using System.Xml;
+using System.Xml.Linq;
+using Newtonsoft.Json.Linq;
 
 namespace MonoBI
 {
 	class MainClass
 	{
+		static WebClient webClient;
+		static SqlConnection sqlConnection;
+		static SqlTransaction sqlTransaction;
+
 		public static void Main()
 		{
-			string jobName;
-			string platformName;
-			int buildId;
-			string buildURL;
-
-			string envJobName = Environment.GetEnvironmentVariable("UPSTREAM_JOB_NAME");
-			if (envJobName == null)
+			string buildUrl = Environment.GetEnvironmentVariable("UPSTREAM_BUILD_URL");
+			if (buildUrl == null)
 			{
-				Console.Error.WriteLine("We need \"JOB_NAME\" env variable defined");
+				Console.Error.WriteLine("We need \"BUILD_URL\" env variable defined");
 				Environment.Exit(1);
 			}
 
-			string envBuildId = Environment.GetEnvironmentVariable("UPSTREAM_BUILD_ID");
-			if (envBuildId == null)
+			string sqlConnectionString = Environment.GetEnvironmentVariable("SQL_CONNECTION");
+			if (sqlConnectionString == null)
 			{
-				Console.Error.WriteLine("We need \"BUILD_ID\" env variable defined");
+				Console.Error.WriteLine("We need \"SQL_CONNECTION\" env variable defined");
 				Environment.Exit(2);
 			}
 
-			string envBuildURL = Environment.GetEnvironmentVariable("UPSTREAM_BUILD_URL");
-			if (envBuildURL == null)
-			{
-				Console.Error.WriteLine("We need \"BUILD_URL\" env variable defined");
-				Environment.Exit(3);
-			}
-
-			int idx;
-			if ((idx = envJobName.IndexOf("/label=", StringComparison.InvariantCulture)) != -1)
-			{
-				jobName = envJobName.Substring(0, idx);
-				platformName = envJobName.Substring(idx + "/label=".Length, envJobName.Length - idx - "/label=".Length);
-			}
-			else
-			{
-				jobName = envJobName;
-
-				string envLabel = Environment.GetEnvironmentVariable("UPSTREAM_LABEL");
-				if (envLabel == null)
-				{
-					Console.Error.WriteLine("We need \"label\" env variable defined");
-					Environment.Exit(5);
-				}
-
-				platformName = envLabel;
-			}
-
-			buildId = int.Parse(envBuildId);
-			buildURL = envBuildURL;
-
-			UploadBuild(jobName, platformName, buildId, buildURL);
-		}
-
-		static void UploadBuild(string jobName, string platformName, int buildId, string buildURL)
-		{
-			string envSQLConnection = Environment.GetEnvironmentVariable("SQL_CONNECTION");
-			if (envSQLConnection == null)
-			{
-				Console.Error.WriteLine("We need \"SQL_CONNECTION\" env variable defined");
-				Environment.Exit(4);
-			}
-
-			using (WebClient webClient = new WebClient())
-			using (SqlConnection sqlConnection = new SqlConnection(envSQLConnection))
+			using (webClient = new WebClient())
+			using (sqlConnection = new SqlConnection(sqlConnectionString))
 			{
 				sqlConnection.Open();
 
-				string json = webClient.DownloadString(
-					buildURL + (buildURL.EndsWith("/", StringComparison.CurrentCulture) ? "" : "/") +
-						"api/json?pretty=1&tree=actions[individualBlobs[*],parameters[*],lastBuiltRevision[*],remoteUrls[*]],timestamp,building,result,id,url");
-
-				Build build = new Build
+				using (sqlTransaction = sqlConnection.BeginTransaction())
 				{
-					JobName = jobName,
-					PlatformName = platformName,
-					BuildId = buildId,
-					BuildURL = buildURL,
-				};
+					XElement xml = RequestXML(buildUrl);
 
-				JsonConvert.PopulateObject(json, build);
-
-				using (SqlTransaction sqlTransaction = sqlConnection.BeginTransaction())
-				{
-					InsertBuild(sqlConnection, sqlTransaction, build);
-
-					foreach (Failure failure in GetFailures(json, webClient))
-					{
-						InsertFailure(sqlConnection, sqlTransaction, build, failure);
-					}
+					if (IsMatrixBuild(xml))
+						UploadMatrixBuild(xml);
+					else
+						UploadBuild(xml);
 
 					sqlTransaction.Commit();
 				}
 			}
 		}
 
-		static IEnumerable<Failure> GetFailures(string json, WebClient client)
+		static XElement RequestXML(string buildURL)
 		{
-			JToken jtoken = JToken.Parse(json);
-			JToken actions = jtoken["actions"];
+			string treeParameter =
+				"tree=" +
+					"id," +
+					"result," +
+					"building," +
+					"timestamp," +
+					"url," +
+					"actions[" +
+						"causes[" +
+							"upstreamBuild," +
+							"upstreamProject," +
+							"upstreamUrl" +
+						"]," +
+						"individualBlobs[" +
+							"blobURL" +
+						"]" +
+					"]," +
+					"runs[" +
+						"id," +
+						"result," +
+						"building," +
+						"timestamp," +
+						"url," +
+						"actions[" +
+							"causes[" +
+								"upstreamBuild," +
+								"upstreamProject," +
+								"upstreamUrl" +
+							"]," +
+							"individualBlobs[" +
+								"blobURL" +
+							"]" +
+						"]" +
+					"]";
 
-			if (actions == null)
-				yield break;
+			string url = buildURL + (buildURL.EndsWith("/", StringComparison.Ordinal) ? "" : "/") + "api/xml?" + treeParameter;
 
-			string babysitterURL = null;
+			Console.WriteLine($"Querying {url}");
 
-			foreach (JToken action in actions.Children())
+			return XElement.Parse(webClient.DownloadString(url));
+		}
+
+		static bool IsMatrixBuild(XElement xmlDocument)
+		{
+			if (xmlDocument.Name == "matrixBuild")
+				return true;
+
+			return false;
+		}
+
+		static void UploadMatrixBuild(XElement xml)
+		{
+			foreach (XElement run in xml.Elements("run"))
 			{
-				if (!action.HasValues)
+				IEnumerable<XElement> actions;
+
+				actions = run.Elements("action");
+				if (!actions.Any())
 					continue;
 
-				string _class = action["_class"].Value<string>();
-				if (_class != "com.microsoftopentechnologies.windowsazurestorage.AzureBlobAction")
+				// Check if <action _class="hudson.model.CauseAction" /> exists
+				actions = actions.Where(action => action.Attribute("_class")?.Value?.Equals("hudson.model.CauseAction") ?? false);
+				if (!actions.Any())
 					continue;
 
-				JToken individualBlobs = action["individualBlobs"];
-				if (individualBlobs == null)
+				// Check if <action><cause _class="hudson.model.Cause$UpstreamCause" /></action> exists
+				actions = actions.Where(action => action.Element("cause")?.Attribute("_class")?.Value?.Equals("hudson.model.Cause$UpstreamCause") ?? false);
+				if (!actions.Any())
 					continue;
 
-				if (!individualBlobs.HasValues)
+				// Check if <action><cause><upstreamBuild/></cause></action> is equal to <id/>
+				actions = actions.Where(action => action.Element("cause")?.Element("upstreamBuild")?.Value?.Equals(xml.Element("id").Value) ?? false);
+				if (!actions.Any())
 					continue;
 
-				string blobURL = individualBlobs[0]["blobURL"].Value<string>();
-				if (string.IsNullOrEmpty(blobURL))
-					continue;
-
-				babysitterURL = blobURL;
-				break;
-			}
-
-			if (babysitterURL == null)
-				yield break;
-
-			foreach (string line in client.DownloadString(babysitterURL).Split('\n'))
-			{
-				if (string.IsNullOrWhiteSpace(line))
-					continue;
-
-				JToken jstep = JToken.Parse(line);
-				if (jstep == null)
-					continue;
-
-				JToken tests = jstep["tests"];
-				if (tests == null)
-					continue;
-
-				foreach (JToken test in tests.Children())
-				{
-					yield return new Failure { TestName = test.Value<JProperty>().Name };
-				}
+				UploadBuild(run);
 			}
 		}
 
-		static void InsertBuild(SqlConnection sqlConnection, SqlTransaction sqlTransaction, Build build)
+		static void UploadBuild(XElement xml)
+		{
+			string platformName;
+			Build build = new Build (GetJobName(xml, out platformName),
+									 platformName,
+									 GetBuildId(xml),
+			                         GetBuildUrl(xml),
+			                         GetBuildResult(xml),
+			                         GetBuildDateTime(xml));
+
+			InsertBuild(build);
+
+			foreach (FailedTest failedTest in GetFailedTests(xml))
+			{
+				InsertFailedTest(build, failedTest);
+			}
+		}
+
+		static string GetJobName(XElement xml, out string platformName)
+		{
+			string[] uriSegments = new Uri(xml.Element("url").Value).Segments;
+
+			int jobIndex = Array.FindLastIndex(uriSegments, s => s == "job/");
+
+			if (uriSegments[jobIndex + 2].StartsWith("label=", StringComparison.Ordinal))
+				platformName = uriSegments[jobIndex + 2].Substring("label=".Length, uriSegments[jobIndex + 2].Length - "label=".Length - 1);
+			else
+				platformName = "";
+
+			return uriSegments[jobIndex + 1].Substring(0, uriSegments[jobIndex + 1].Length - 1);
+		}
+
+		static int GetBuildId(XElement xml)
+		{
+			return int.Parse(xml.Element("id").Value);
+		}
+
+		static string GetBuildUrl(XElement xml)
+		{
+			return xml.Element("url").Value;
+		}
+
+		static string GetBuildResult(XElement xml)
+		{
+			return xml.Element("result").Value;
+		}
+
+		static DateTime GetBuildDateTime(XElement xml)
+		{
+			return new DateTime(1970, 1, 1).AddMilliseconds(long.Parse(xml.Element("timestamp").Value));
+		}
+
+		static IEnumerable<FailedTest> GetFailedTests(XElement xml)
+		{
+			foreach (XElement action in xml.Elements("action"))
+			{
+				if (!(action.Attribute("_class")?.Value?.Equals("com.microsoftopentechnologies.windowsazurestorage.AzureBlobAction") ?? false))
+					continue;
+
+				string babysitterURL = action.Element("individualBlob")?.Element("blobURL")?.Value;
+				if (string.IsNullOrWhiteSpace (babysitterURL))
+					continue;
+
+				foreach (string line in webClient.DownloadString(babysitterURL).Split('\n'))
+				{
+					if (string.IsNullOrWhiteSpace(line))
+						continue;
+
+					JToken jstep = JToken.Parse(line);
+					if (jstep == null)
+						continue;
+
+					JToken tests = jstep["tests"];
+					if (tests == null)
+						continue;
+
+					foreach (JToken test in tests.Children())
+					{
+						yield return new FailedTest { TestName = test.Value<JProperty>().Name };
+					}
+				}
+
+				// There should be only 1 babysitter upload per build
+				break;
+			}
+		}
+
+		static void InsertBuild(Build build)
 		{
 			Console.WriteLine(build);
 
@@ -174,16 +229,16 @@ namespace MonoBI
 			{
 				sqlCommand.Parameters.Add(new SqlParameter("JobName", build.JobName));
 				sqlCommand.Parameters.Add(new SqlParameter("PlatformName", build.PlatformName));
-				sqlCommand.Parameters.Add(new SqlParameter("BuildId", build.BuildId));
+				sqlCommand.Parameters.Add(new SqlParameter("BuildId", build.Id));
 				sqlCommand.Parameters.Add(new SqlParameter("Result", build.Result));
 				sqlCommand.Parameters.Add(new SqlParameter("DateTime", build.DateTime));
-				sqlCommand.Parameters.Add(new SqlParameter("URL", build.BuildURL));
+				sqlCommand.Parameters.Add(new SqlParameter("URL", build.Url));
 
 				sqlCommand.ExecuteNonQuery();
 			}
 		}
 
-		static void InsertFailure(SqlConnection sqlConnection, SqlTransaction sqlTransaction, Build build, Failure failure)
+		static void InsertFailedTest(Build build, FailedTest failure)
 		{
 			Console.WriteLine(failure);
 
@@ -193,7 +248,7 @@ namespace MonoBI
 			{
 				sqlCommand.Parameters.Add(new SqlParameter("JobName", build.JobName));
 				sqlCommand.Parameters.Add(new SqlParameter("PlatformName", build.PlatformName));
-				sqlCommand.Parameters.Add(new SqlParameter("BuildId", build.BuildId));
+				sqlCommand.Parameters.Add(new SqlParameter("BuildId", build.Id));
 				sqlCommand.Parameters.Add(new SqlParameter("TestName", failure.TestName));
 
 				sqlCommand.ExecuteNonQuery();
