@@ -1,17 +1,40 @@
-
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MonoBI", "MonoBI\MonoBI.csproj", "{93B4230D-A576-48DE-A14A-98287253A8ED}"
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{33AD0EE8-D99B-4E14-8CD9-3F56ABEF97A2}") = "MonoBI", "AzureFunctions\MonoBI.funproj", "{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JenkinsRunner", "JenkinsRunner\JenkinsRunner.csproj", "{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}"
 EndProject
 Global
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
 		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{93B4230D-A576-48DE-A14A-98287253A8ED}.Debug|x86.ActiveCfg = Debug|x86
-		{93B4230D-A576-48DE-A14A-98287253A8ED}.Debug|x86.Build.0 = Debug|x86
-		{93B4230D-A576-48DE-A14A-98287253A8ED}.Release|x86.ActiveCfg = Release|x86
-		{93B4230D-A576-48DE-A14A-98287253A8ED}.Release|x86.Build.0 = Release|x86
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Debug|x86.Build.0 = Debug|Any CPU
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Release|x86.ActiveCfg = Release|Any CPU
+		{2DFA4C05-B772-4C35-9D73-0E86BB34DECA}.Release|x86.Build.0 = Release|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Debug|x86.Build.0 = Debug|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Release|x86.ActiveCfg = Release|Any CPU
+		{2E06205F-5680-42C0-9ABF-010F8D8F6A7C}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
