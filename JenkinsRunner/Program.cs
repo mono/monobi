@@ -26,7 +26,13 @@ namespace JenkinsRunner
             {
                 HttpResponseMessage response = httpClient.PostAsync($"https://monobi.azurewebsites.net/api/Post?code={functionCode}", new StringContent(buildUrl)).Result;
 
+				Console.WriteLine($"Status Code: {(int)response.StatusCode} {response.StatusCode}");
+				foreach (var header in response.Headers)
+					Console.WriteLine($"{header.Key}: {string.Join(",", header.Value)}");
+				Console.WriteLine();
+
                 Console.WriteLine(response.Content.ReadAsStringAsync().Result);
+
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     Environment.Exit(3);
