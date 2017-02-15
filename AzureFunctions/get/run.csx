@@ -10,13 +10,13 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Threading;
 
-public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, CancellationToken token, TraceWriter log)
+public static HttpResponseMessage Run(HttpRequestMessage req, TraceWriter log)
 {
     List<Build> builds = new List<Build>();
 
     using (SqlConnection sqlConnection = new SqlConnection(Environment.GetEnvironmentVariable("AzureSqlDatabaseConnectionString")))
     {
-        await sqlConnection.OpenAsync(token);
+        sqlConnection.Open();
 
         using (SqlCommand sqlCommand = new SqlCommand(
             "SELECT " +
@@ -42,10 +42,10 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
                 "AND Builds.PlatformName = FailedTests.PlatformName " +
                 "AND Builds.BuildId = FailedTests.BuildId " +
             "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId", sqlConnection))
-        using (SqlDataReader sqlReader = await sqlCommand.ExecuteReaderAsync(token))
+        using (SqlDataReader sqlReader = sqlCommand.ExecuteReader())
         {
             Build build = null;
-            while (await sqlReader.ReadAsync(token))
+            while (sqlReader.Read())
             {
                 if (build == null || sqlReader.GetString(0) != build.JobName || sqlReader.GetString(1) != build.PlatformName || sqlReader.GetInt32(2) != build.Id)
                 {
