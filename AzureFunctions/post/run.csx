@@ -14,27 +14,27 @@ using System.Threading;
 using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
 
-public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, CancellationToken token, TraceWriter log)
+public static HttpResponseMessage Run(HttpRequestMessage req, CancellationToken token, TraceWriter log)
 {
-    string buildUrl = await req.Content.ReadAsStringAsync();
+    string buildUrl = req.Content.ReadAsStringAsync().Result;
     if (string.IsNullOrWhiteSpace(buildUrl))
         return req.CreateResponse(HttpStatusCode.BadRequest, "missing \"buildUrl\" parameter");
 
-    XElement xml = await RequestXML(buildUrl, token, log);
+    XElement xml = RequestXML(buildUrl, token, log);
 
     IEnumerable<Build> builds;
     if (xml.Name != "matrixBuild")
     {
-        builds = new [] { await GetBuild(xml, token, log) };
+        builds = new [] { GetBuild(xml, token, log) };
     }
     else
     {
-        builds = await GetMatrixBuilds(xml, token, log);
+        builds = GetMatrixBuilds(xml, token, log);
     }
 
     using (SqlConnection sqlConnection = new SqlConnection(Environment.GetEnvironmentVariable("AzureSqlDatabaseConnectionString")))
     {
-        await sqlConnection.OpenAsync(token);
+        sqlConnection.Open(token);
 
         using (SqlTransaction sqlTransaction = sqlConnection.BeginTransaction())
         {
@@ -60,7 +60,7 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
                     sqlCommand.Parameters.Add(new SqlParameter("PrTitle", build.PrTitle != null ? (object)build.PrTitle : (object)DBNull.Value));
                     sqlCommand.Parameters.Add(new SqlParameter("PrAuthor", build.PrAuthor != null ? (object)build.PrAuthor : (object)DBNull.Value));
 
-                    await sqlCommand.ExecuteNonQueryAsync(token);
+                    sqlCommand.ExecuteNonQuery(token);
                 }
             }
 
@@ -83,7 +83,7 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
                         sqlCommand.Parameters.Add(new SqlParameter("Failure", failedTest.Failure));
                         sqlCommand.Parameters.Add(new SqlParameter("FinalCode", failedTest.FinalCode));
 
-                        await sqlCommand.ExecuteNonQueryAsync(token);
+                        sqlCommand.ExecuteNonQuery(token);
                     }
                 }
             }
@@ -95,7 +95,7 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
     return req.CreateResponse(HttpStatusCode.OK, builds);
 }
 
-static async Task<IEnumerable<Build>> GetMatrixBuilds(XElement xml, CancellationToken token, TraceWriter log)
+static IEnumerable<Build> GetMatrixBuilds(XElement xml, CancellationToken token, TraceWriter log)
 {
     List<Build> builds = new List<Build>();
 
@@ -117,13 +117,13 @@ static async Task<IEnumerable<Build>> GetMatrixBuilds(XElement xml, Cancellation
         if (!actions.Any())
             continue;
 
-        builds.Add(await GetBuild(run, token, log));
+        builds.Add(GetBuild(run, token, log));
     }
 
     return builds;
 }
 
-async static Task<Build> GetBuild(XElement xml, CancellationToken token, TraceWriter log)
+static Build GetBuild(XElement xml, CancellationToken token, TraceWriter log)
 {
     string platformName;
     Build build = IsPrBuild(xml) ?
@@ -148,7 +148,7 @@ async static Task<Build> GetBuild(XElement xml, CancellationToken token, TraceWr
                   GetBabysitterUrl(xml),
                   GetGitHash(xml));
 
-    foreach (FailedTest failedTest in await GetFailedTests(build.BabysitterUrl, token, log))
+    foreach (FailedTest failedTest in GetFailedTests(build.BabysitterUrl, token, log))
     {
         build.FailedTests.Add(failedTest);
     }
@@ -290,39 +290,40 @@ static string GetPrField(XElement xml, string field)
     return parameters.Select(p => p.Element("value").Value).First();
 }
 
-static async Task<IEnumerable<FailedTest>> GetFailedTests(string babysitterUrl, CancellationToken token, TraceWriter log)
+static IEnumerable<FailedTest> GetFailedTests(string babysitterUrl, CancellationToken token, TraceWriter log)
 {
     if (babysitterUrl == null)
         return Enumerable.Empty<FailedTest>();
 
-    return (await RequestBabysitter(babysitterUrl, token, log))
-        .SelectMany(t =>
-        {
-            JToken tests = t["tests"];
-            if (tests == null)
-                return Enumerable.Empty<FailedTest>();
-
-            string invocation = t["invocation"].Value<string>();
-            int finalCode = t["final_code"].Value<int>();
-
-            return tests.Children().Select(test =>
+    return
+        RequestBabysitter(babysitterUrl, token, log)
+            .SelectMany(t =>
             {
-                string failure;
-                if (test.Value<JProperty>().Value.Children().Any(c => c.Value<JProperty>().Name.Equals("normal_failures")))
-                    failure = "normal";
-                else if (test.Value<JProperty>().Value.Children().Any(c => c.Value<JProperty>().Name.Equals("timeout_failures")))
-                    failure = "timeout";
-                else if (test.Value<JProperty>().Value.Children().Any(c => c.Value<JProperty>().Name.Equals("crash_failures")))
-                    failure = "crash";
-                else
-                    throw new NotImplementedException();
+                JToken tests = t["tests"];
+                if (tests == null)
+                    return Enumerable.Empty<FailedTest>();
 
-                return new FailedTest(test.Value<JProperty>().Name, invocation, failure, finalCode);
+                string invocation = t["invocation"].Value<string>();
+                int finalCode = t["final_code"].Value<int>();
+
+                return tests.Children().Select(test =>
+                {
+                    string failure;
+                    if (test.Value<JProperty>().Value.Children().Any(c => c.Value<JProperty>().Name.Equals("normal_failures")))
+                        failure = "normal";
+                    else if (test.Value<JProperty>().Value.Children().Any(c => c.Value<JProperty>().Name.Equals("timeout_failures")))
+                        failure = "timeout";
+                    else if (test.Value<JProperty>().Value.Children().Any(c => c.Value<JProperty>().Name.Equals("crash_failures")))
+                        failure = "crash";
+                    else
+                        throw new NotImplementedException();
+
+                    return new FailedTest(test.Value<JProperty>().Name, invocation, failure, finalCode);
+                });
             });
-        });
 }
 
-static async Task<XElement> RequestXML(string buildUrl, CancellationToken token, TraceWriter log)
+static XElement RequestXML(string buildUrl, CancellationToken token, TraceWriter log)
 {
     string treeParameter =
         "id," +
@@ -353,23 +354,24 @@ static async Task<XElement> RequestXML(string buildUrl, CancellationToken token,
             "]" +
         "]";
 
-    return XElement.Parse(await RequestUrl(buildUrl + (buildUrl.EndsWith("/", StringComparison.Ordinal) ? "" : "/") + $"api/xml?tree={treeParameter},runs[{treeParameter}]", token, log));
+    return XElement.Parse(RequestUrl(buildUrl + (buildUrl.EndsWith("/", StringComparison.Ordinal) ? "" : "/") + $"api/xml?tree={treeParameter},runs[{treeParameter}]", token, log));
 }
 
-static async Task<IEnumerable<JToken>> RequestBabysitter(string babysitterUrl, CancellationToken token, TraceWriter log)
+static IEnumerable<JToken> RequestBabysitter(string babysitterUrl, CancellationToken token, TraceWriter log)
 {
-    return (await RequestUrl(babysitterUrl, token, log))
-        .Split('\n')
-        .Where(l => !string.IsNullOrWhiteSpace(l))
-        .Select(l => JToken.Parse(l))
-        .Where(t => t != null);
+    return
+        RequestUrl(babysitterUrl, token, log)
+            .Split('\n')
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => JToken.Parse(l))
+            .Where(t => t != null);
 }
 
-static async Task<string> RequestUrl(string url, CancellationToken token, TraceWriter log)
+static string RequestUrl(string url, CancellationToken token, TraceWriter log)
 {
     using (HttpClient httpClient = new HttpClient())
     {
         log.Info($"Fetch url {url}");
-        return await (await httpClient.GetAsync(url, token)).Content.ReadAsStringAsync();
+        return httpClient.GetAsync(url, token).Result.Content.ReadAsStringAsync().Result;
     }
 }
