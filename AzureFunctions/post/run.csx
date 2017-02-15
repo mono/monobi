@@ -35,7 +35,7 @@ public static HttpResponseMessage Run(HttpRequestMessage req, CancellationToken 
 
         using (SqlConnection sqlConnection = new SqlConnection(Environment.GetEnvironmentVariable("AzureSqlDatabaseConnectionString")))
         {
-            sqlConnection.Open(token);
+            sqlConnection.Open();
 
             using (SqlTransaction sqlTransaction = sqlConnection.BeginTransaction())
             {
@@ -61,7 +61,7 @@ public static HttpResponseMessage Run(HttpRequestMessage req, CancellationToken 
                         sqlCommand.Parameters.Add(new SqlParameter("PrTitle", build.PrTitle != null ? (object)build.PrTitle : (object)DBNull.Value));
                         sqlCommand.Parameters.Add(new SqlParameter("PrAuthor", build.PrAuthor != null ? (object)build.PrAuthor : (object)DBNull.Value));
 
-                        sqlCommand.ExecuteNonQuery(token);
+                        sqlCommand.ExecuteNonQuery();
                     }
                 }
 
@@ -84,7 +84,7 @@ public static HttpResponseMessage Run(HttpRequestMessage req, CancellationToken 
                             sqlCommand.Parameters.Add(new SqlParameter("Failure", failedTest.Failure));
                             sqlCommand.Parameters.Add(new SqlParameter("FinalCode", failedTest.FinalCode));
 
-                            sqlCommand.ExecuteNonQuery(token);
+                            sqlCommand.ExecuteNonQuery();
                         }
                     }
                 }
