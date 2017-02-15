@@ -16,87 +16,83 @@ using Newtonsoft.Json.Linq;
 
 public static HttpResponseMessage Run(HttpRequestMessage req, CancellationToken token, TraceWriter log)
 {
-    try {
-        string buildUrl = req.Content.ReadAsStringAsync().Result;
-        if (string.IsNullOrWhiteSpace(buildUrl))
-            return req.CreateResponse(HttpStatusCode.BadRequest, "missing \"buildUrl\" parameter");
+    string buildUrl = req.Content.ReadAsStringAsync().Result;
+    if (string.IsNullOrWhiteSpace(buildUrl))
+        return req.CreateResponse(HttpStatusCode.BadRequest, "missing \"buildUrl\" parameter");
 
-        XElement xml = RequestXML(buildUrl, token, log);
+    XElement xml = RequestXML(buildUrl, token, log);
 
-        IEnumerable<Build> builds;
-        if (xml.Name != "matrixBuild")
+    IEnumerable<Build> builds;
+    if (xml.Name != "matrixBuild")
+    {
+        builds = new [] { GetBuild(xml, token, log) };
+    }
+    else
+    {
+        builds = GetMatrixBuilds(xml, token, log);
+    }
+
+    using (SqlConnection sqlConnection = new SqlConnection(Environment.GetEnvironmentVariable("AzureSqlDatabaseConnectionString")))
+    {
+        sqlConnection.Open();
+
+        using (SqlTransaction sqlTransaction = sqlConnection.BeginTransaction())
         {
-            builds = new [] { GetBuild(xml, token, log) };
-        }
-        else
-        {
-            builds = GetMatrixBuilds(xml, token, log);
-        }
-
-        using (SqlConnection sqlConnection = new SqlConnection(Environment.GetEnvironmentVariable("AzureSqlDatabaseConnectionString")))
-        {
-            sqlConnection.Open();
-
-            using (SqlTransaction sqlTransaction = sqlConnection.BeginTransaction())
+            using (SqlCommand sqlCommand = new SqlCommand(
+                "INSERT INTO Builds (JobName, PlatformName, BuildId, Result, DateTime, Url, BabysitterUrl, GitHash, PrId, PrUrl, PrTitle, PrAuthor) " +
+                    "VALUES (@JobName, @PlatformName, @BuildId, @Result, @DateTime, @Url, @BabysitterUrl, @GitHash, @PrId, @PrUrl, @PrTitle, @PrAuthor)", sqlConnection, sqlTransaction))
             {
-                using (SqlCommand sqlCommand = new SqlCommand(
-                    "INSERT INTO Builds (JobName, PlatformName, BuildId, Result, DateTime, Url, BabysitterUrl, GitHash, PrId, PrUrl, PrTitle, PrAuthor) " +
-                        "VALUES (@JobName, @PlatformName, @BuildId, @Result, @DateTime, @Url, @BabysitterUrl, @GitHash, @PrId, @PrUrl, @PrTitle, @PrAuthor)", sqlConnection, sqlTransaction))
+                foreach (Build build in builds)
                 {
-                    foreach (Build build in builds)
+                    log.Info($"Insert build {build.JobName} {build.PlatformName} {build.Id}");
+
+                    sqlCommand.Parameters.Clear();
+                    sqlCommand.Parameters.Add(new SqlParameter("JobName", build.JobName));
+                    sqlCommand.Parameters.Add(new SqlParameter("PlatformName", build.PlatformName));
+                    sqlCommand.Parameters.Add(new SqlParameter("BuildId", build.Id));
+                    sqlCommand.Parameters.Add(new SqlParameter("Url", build.Url));
+                    sqlCommand.Parameters.Add(new SqlParameter("Result", build.Result));
+                    sqlCommand.Parameters.Add(new SqlParameter("DateTime", build.DateTime));
+                    sqlCommand.Parameters.Add(new SqlParameter("BabysitterUrl", build.BabysitterUrl != null ? (object)build.BabysitterUrl : (object)DBNull.Value));
+                    sqlCommand.Parameters.Add(new SqlParameter("GitHash", build.GitHash != null ? (object)build.GitHash : (object)DBNull.Value));
+                    sqlCommand.Parameters.Add(new SqlParameter("PrId", build.PrId));
+                    sqlCommand.Parameters.Add(new SqlParameter("PrUrl", build.PrUrl != null ? (object)build.PrUrl : (object)DBNull.Value));
+                    sqlCommand.Parameters.Add(new SqlParameter("PrTitle", build.PrTitle != null ? (object)build.PrTitle : (object)DBNull.Value));
+                    sqlCommand.Parameters.Add(new SqlParameter("PrAuthor", build.PrAuthor != null ? (object)build.PrAuthor : (object)DBNull.Value));
+
+                    sqlCommand.ExecuteNonQuery();
+                }
+            }
+
+            using (SqlCommand sqlCommand = new SqlCommand(
+                "INSERT INTO FailedTests (JobName, PlatformName, BuildId, TestName, Invocation, Failure, FinalCode) " +
+                    "VALUES (@JobName, @PlatformName, @BuildId, @TestName, @Invocation, @Failure, @FinalCode)", sqlConnection, sqlTransaction))
+            {
+                foreach (Build build in builds)
+                {
+                    foreach (FailedTest failedTest in build.FailedTests)
                     {
-                        log.Info($"Insert build {build.JobName} {build.PlatformName} {build.Id}");
+                        log.Info($"Insert failed test {build.JobName} {build.PlatformName} {build.Id} {failedTest.TestName}");
 
                         sqlCommand.Parameters.Clear();
                         sqlCommand.Parameters.Add(new SqlParameter("JobName", build.JobName));
                         sqlCommand.Parameters.Add(new SqlParameter("PlatformName", build.PlatformName));
                         sqlCommand.Parameters.Add(new SqlParameter("BuildId", build.Id));
-                        sqlCommand.Parameters.Add(new SqlParameter("Url", build.Url));
-                        sqlCommand.Parameters.Add(new SqlParameter("Result", build.Result));
-                        sqlCommand.Parameters.Add(new SqlParameter("DateTime", build.DateTime));
-                        sqlCommand.Parameters.Add(new SqlParameter("BabysitterUrl", build.BabysitterUrl != null ? (object)build.BabysitterUrl : (object)DBNull.Value));
-                        sqlCommand.Parameters.Add(new SqlParameter("GitHash", build.GitHash != null ? (object)build.GitHash : (object)DBNull.Value));
-                        sqlCommand.Parameters.Add(new SqlParameter("PrId", build.PrId));
-                        sqlCommand.Parameters.Add(new SqlParameter("PrUrl", build.PrUrl != null ? (object)build.PrUrl : (object)DBNull.Value));
-                        sqlCommand.Parameters.Add(new SqlParameter("PrTitle", build.PrTitle != null ? (object)build.PrTitle : (object)DBNull.Value));
-                        sqlCommand.Parameters.Add(new SqlParameter("PrAuthor", build.PrAuthor != null ? (object)build.PrAuthor : (object)DBNull.Value));
+                        sqlCommand.Parameters.Add(new SqlParameter("TestName", failedTest.TestName));
+                        sqlCommand.Parameters.Add(new SqlParameter("Invocation", failedTest.Invocation));
+                        sqlCommand.Parameters.Add(new SqlParameter("Failure", failedTest.Failure));
+                        sqlCommand.Parameters.Add(new SqlParameter("FinalCode", failedTest.FinalCode));
 
                         sqlCommand.ExecuteNonQuery();
                     }
                 }
-
-                using (SqlCommand sqlCommand = new SqlCommand(
-                    "INSERT INTO FailedTests (JobName, PlatformName, BuildId, TestName, Invocation, Failure, FinalCode) " +
-                        "VALUES (@JobName, @PlatformName, @BuildId, @TestName, @Invocation, @Failure, @FinalCode)", sqlConnection, sqlTransaction))
-                {
-                    foreach (Build build in builds)
-                    {
-                        foreach (FailedTest failedTest in build.FailedTests)
-                        {
-                            log.Info($"Insert failed test {build.JobName} {build.PlatformName} {build.Id} {failedTest.TestName}");
-
-                            sqlCommand.Parameters.Clear();
-                            sqlCommand.Parameters.Add(new SqlParameter("JobName", build.JobName));
-                            sqlCommand.Parameters.Add(new SqlParameter("PlatformName", build.PlatformName));
-                            sqlCommand.Parameters.Add(new SqlParameter("BuildId", build.Id));
-                            sqlCommand.Parameters.Add(new SqlParameter("TestName", failedTest.TestName));
-                            sqlCommand.Parameters.Add(new SqlParameter("Invocation", failedTest.Invocation));
-                            sqlCommand.Parameters.Add(new SqlParameter("Failure", failedTest.Failure));
-                            sqlCommand.Parameters.Add(new SqlParameter("FinalCode", failedTest.FinalCode));
-
-                            sqlCommand.ExecuteNonQuery();
-                        }
-                    }
-                }
-
-                sqlTransaction.Commit();
             }
-        }
 
-        return req.CreateResponse(HttpStatusCode.OK, builds);
-    } catch (Exception e) {
-        return req.CreateResponse(HttpStatusCode.InternalServerError, e.ToString());
+            sqlTransaction.Commit();
+        }
     }
+
+    return req.CreateResponse(HttpStatusCode.OK, builds);
 }
 
 static IEnumerable<Build> GetMatrixBuilds(XElement xml, CancellationToken token, TraceWriter log)
