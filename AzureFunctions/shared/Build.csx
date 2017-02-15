@@ -6,12 +6,12 @@ using System.Collections.Generic;
 
 class Build
 {
-	public string JobName { get; }
-	public string PlatformName { get; }
-	public int Id { get; }
-	public string Url { get; }
-	public string Result { get; }
-	public DateTime DateTime { get; }
+    public string JobName { get; }
+    public string PlatformName { get; }
+    public int Id { get; }
+    public string Url { get; }
+    public string Result { get; }
+    public DateTime DateTime { get; }
     public string BabysitterUrl { get; }
     public string GitHash { get; }
     public int PrId { get; }
@@ -27,13 +27,13 @@ class Build
     }
 
     public Build(string jobName, string platformName, int id, string url, string result, DateTime dateTime, string babysitterUrl, string gitHash, int prId, string prUrl, string prTitle, string prAuthor)
-	{
-		JobName = jobName;
-		PlatformName = platformName;
-		Id = id;
-		Url = url;
-		Result = result;
-		DateTime = dateTime;
+    {
+        JobName = jobName;
+        PlatformName = platformName;
+        Id = id;
+        Url = url;
+        Result = result;
+        DateTime = dateTime;
         BabysitterUrl = babysitterUrl;
         GitHash = gitHash;
         PrId = prId;
@@ -42,10 +42,10 @@ class Build
         PrAuthor = prAuthor;
 
         FailedTests = new List<FailedTest>();
-	}
+    }
 
-	public override string ToString()
-	{
-		return $"[Build: JobName={JobName}, PlatformName={PlatformName}, Id={Id}, Url={Url}, Result={Result}, DateTime={DateTime}, GitHash={GitHash}, PrId={PrId}, PrUrl={PrUrl}, PrTitle={PrTitle}, PrAuthor={PrAuthor}]";
+    public override string ToString()
+    {
+        return $"[Build: JobName={JobName}, PlatformName={PlatformName}, Id={Id}, Url={Url}, Result={Result}, DateTime={DateTime}, GitHash={GitHash}, PrId={PrId}, PrUrl={PrUrl}, PrTitle={PrTitle}, PrAuthor={PrAuthor}]";
     }
 }

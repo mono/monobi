@@ -14,23 +14,22 @@ using System.Threading;
 using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
 
-public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, CancellationToken token)
+public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, CancellationToken token, TraceWriter log)
 {
     string buildUrl = await req.Content.ReadAsStringAsync();
     if (string.IsNullOrWhiteSpace(buildUrl))
         return req.CreateResponse(HttpStatusCode.BadRequest, "missing \"buildUrl\" parameter");
 
-    XElement xml = await RequestXML(buildUrl, token);
+    XElement xml = await RequestXML(buildUrl, token, log);
 
-    List<Build> builds = new List<Build>();
-
+    IEnumerable<Build> builds;
     if (xml.Name != "matrixBuild")
     {
-        builds.Add(await GetBuild(xml, token));
+        builds = new [] { await GetBuild(xml, token, log) };
     }
     else
     {
-        builds.AddRange(await GetMatrixBuilds(xml, token));
+        builds = await GetMatrixBuilds(xml, token, log);
     }
 
     using (SqlConnection sqlConnection = new SqlConnection(Environment.GetEnvironmentVariable("AzureSqlDatabaseConnectionString")))
@@ -45,6 +44,8 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
             {
                 foreach (Build build in builds)
                 {
+                    log.Info($"Insert build {build.JobName} {build.PlatformName} {build.Id}");
+
                     sqlCommand.Parameters.Clear();
                     sqlCommand.Parameters.Add(new SqlParameter("JobName", build.JobName));
                     sqlCommand.Parameters.Add(new SqlParameter("PlatformName", build.PlatformName));
@@ -71,6 +72,8 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
                 {
                     foreach (FailedTest failedTest in build.FailedTests)
                     {
+                        log.Info($"Insert failed test {build.JobName} {build.PlatformName} {build.Id} {failedTest.TestName}");
+
                         sqlCommand.Parameters.Clear();
                         sqlCommand.Parameters.Add(new SqlParameter("JobName", build.JobName));
                         sqlCommand.Parameters.Add(new SqlParameter("PlatformName", build.PlatformName));
@@ -92,7 +95,7 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
     return req.CreateResponse(HttpStatusCode.OK, builds);
 }
 
-static async Task<IEnumerable<Build>> GetMatrixBuilds(XElement xml, CancellationToken token)
+static async Task<IEnumerable<Build>> GetMatrixBuilds(XElement xml, CancellationToken token, TraceWriter log)
 {
     List<Build> builds = new List<Build>();
 
@@ -114,13 +117,13 @@ static async Task<IEnumerable<Build>> GetMatrixBuilds(XElement xml, Cancellation
         if (!actions.Any())
             continue;
 
-        builds.Add(await GetBuild(run, token));
+        builds.Add(await GetBuild(run, token, log));
     }
 
     return builds;
 }
 
-async static Task<Build> GetBuild(XElement xml, CancellationToken token)
+async static Task<Build> GetBuild(XElement xml, CancellationToken token, TraceWriter log)
 {
     string platformName;
     Build build = IsPrBuild(xml) ?
@@ -145,7 +148,7 @@ async static Task<Build> GetBuild(XElement xml, CancellationToken token)
                   GetBabysitterUrl(xml),
                   GetGitHash(xml));
 
-    foreach (FailedTest failedTest in await GetFailedTests(build.BabysitterUrl, token))
+    foreach (FailedTest failedTest in await GetFailedTests(build.BabysitterUrl, token, log))
     {
         build.FailedTests.Add(failedTest);
     }
@@ -287,12 +290,12 @@ static string GetPrField(XElement xml, string field)
     return parameters.Select(p => p.Element("value").Value).First();
 }
 
-static async Task<IEnumerable<FailedTest>> GetFailedTests(string babysitterUrl, CancellationToken token)
+static async Task<IEnumerable<FailedTest>> GetFailedTests(string babysitterUrl, CancellationToken token, TraceWriter log)
 {
     if (babysitterUrl == null)
         return Enumerable.Empty<FailedTest>();
 
-    return (await RequestBabysitter(babysitterUrl, token))
+    return (await RequestBabysitter(babysitterUrl, token, log))
         .SelectMany(t =>
         {
             JToken tests = t["tests"];
@@ -319,7 +322,7 @@ static async Task<IEnumerable<FailedTest>> GetFailedTests(string babysitterUrl, 
         });
 }
 
-static async Task<XElement> RequestXML(string buildUrl, CancellationToken token)
+static async Task<XElement> RequestXML(string buildUrl, CancellationToken token, TraceWriter log)
 {
     string treeParameter =
         "id," +
@@ -350,22 +353,23 @@ static async Task<XElement> RequestXML(string buildUrl, CancellationToken token)
             "]" +
         "]";
 
-    return XElement.Parse(await RequestUrl(buildUrl + (buildUrl.EndsWith("/", StringComparison.Ordinal) ? "" : "/") + $"api/xml?tree={treeParameter},runs[{treeParameter}]", token));
+    return XElement.Parse(await RequestUrl(buildUrl + (buildUrl.EndsWith("/", StringComparison.Ordinal) ? "" : "/") + $"api/xml?tree={treeParameter},runs[{treeParameter}]", token, log));
 }
 
-static async Task<IEnumerable<JToken>> RequestBabysitter(string babysitterUrl, CancellationToken token)
+static async Task<IEnumerable<JToken>> RequestBabysitter(string babysitterUrl, CancellationToken token, TraceWriter log)
 {
-    return (await RequestUrl(babysitterUrl, token))
+    return (await RequestUrl(babysitterUrl, token, log))
         .Split('\n')
         .Where(l => !string.IsNullOrWhiteSpace(l))
         .Select(l => JToken.Parse(l))
         .Where(t => t != null);
 }
 
-static async Task<string> RequestUrl(string url, CancellationToken token)
+static async Task<string> RequestUrl(string url, CancellationToken token, TraceWriter log)
 {
     using (HttpClient httpClient = new HttpClient())
     {
+        log.Info($"Fetch url {url}");
         return await (await httpClient.GetAsync(url, token)).Content.ReadAsStringAsync();
     }
 }

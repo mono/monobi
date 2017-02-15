@@ -10,7 +10,7 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Threading;
 
-public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, CancellationToken token)
+public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, CancellationToken token, TraceWriter log)
 {
     List<Build> builds = new List<Build>();
 
@@ -66,14 +66,20 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, Cancel
                                       sqlReader.IsDBNull(9) ? null : sqlReader.GetString(9),
                                       sqlReader.IsDBNull(10) ? null : sqlReader.GetString(10),
                                       sqlReader.IsDBNull(11) ? null : sqlReader.GetString(11));
+
+                    log.Info($"Fetch build {build.JobName} {build.PlatformName} {build.Id}");
                 }
 
                 if (!sqlReader.IsDBNull(12))
                 {
-                    build.FailedTests.Add(new FailedTest(sqlReader.GetString(12),
-                                                         sqlReader.GetString(13),
-                                                         sqlReader.GetString(14),
-                                                         sqlReader.GetInt32(15)));
+                    FailedTest failedTest = new FailedTest(sqlReader.GetString(12),
+                                                           sqlReader.GetString(13),
+                                                           sqlReader.GetString(14),
+                                                           sqlReader.GetInt32(15));
+
+                    build.FailedTests.Add(failedTest);
+
+                    log.Info($"Fetch failed test {build.JobName} {build.PlatformName} {build.Id} {failedTest.TestName}");
                 }
             }
         }
