@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Net;
 using System.Threading;
+using System.Net.Http.Formatting;
 
 public static HttpResponseMessage Run(HttpRequestMessage req, TraceWriter log)
 {
@@ -32,17 +33,8 @@ public static HttpResponseMessage Run(HttpRequestMessage req, TraceWriter log)
                 ", Builds.PrUrl " +
                 ", Builds.PrTitle " +
                 ", Builds.PrAuthor " +
-                ", FailedTests.TestName " +
-                ", FailedTests.Invocation " +
-                ", FailedTests.Failure " +
-                ", FailedTests.FinalCode " +
             "FROM Builds " +
-            "LEFT JOIN FailedTests ON " +
-                "    Builds.JobName = FailedTests.JobName " +
-                "AND Builds.PlatformName = FailedTests.PlatformName " +
-                "AND Builds.BuildId = FailedTests.BuildId " +
-            "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId " +
-            "LIMIT 1", sqlConnection))
+            "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId", sqlConnection))
         using (SqlDataReader sqlReader = sqlCommand.ExecuteReader())
         {
             Build build = null;
@@ -70,21 +62,9 @@ public static HttpResponseMessage Run(HttpRequestMessage req, TraceWriter log)
 
                     log.Info($"Fetch build {build.JobName} {build.PlatformName} {build.Id}");
                 }
-
-                if (!sqlReader.IsDBNull(12))
-                {
-                    FailedTest failedTest = new FailedTest(sqlReader.GetString(12),
-                                                           sqlReader.GetString(13),
-                                                           sqlReader.GetString(14),
-                                                           sqlReader.GetInt32(15));
-
-                    build.FailedTests.Add(failedTest);
-
-                    log.Info($"Fetch failed test {build.JobName} {build.PlatformName} {build.Id} {failedTest.TestName}");
-                }
             }
         }
     }
 
-    return req.CreateResponse(HttpStatusCode.OK, builds);
+    return req.CreateResponse<List<Build>>(HttpStatusCode.OK, builds, new JsonMediaTypeFormatter());
 }
