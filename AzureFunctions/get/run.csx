@@ -41,7 +41,8 @@ public static HttpResponseMessage Run(HttpRequestMessage req, TraceWriter log)
                 "    Builds.JobName = FailedTests.JobName " +
                 "AND Builds.PlatformName = FailedTests.PlatformName " +
                 "AND Builds.BuildId = FailedTests.BuildId " +
-            "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId", sqlConnection))
+            "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId " +
+            "LIMIT 1", sqlConnection))
         using (SqlDataReader sqlReader = sqlCommand.ExecuteReader())
         {
             Build build = null;
