@@ -4,26 +4,22 @@
 using System;
 using System.Collections.Generic;
 
-[DataContract]
 class Build
 {
-    [DataMember] public string JobName { get; }
-    [DataMember] public string PlatformName { get; }
-    [DataMember] public int Id { get; }
-    [DataMember] public string Url { get; }
-    [DataMember] public string Result { get; }
-    [DataMember] public DateTime DateTime { get; }
-    [DataMember] public string BabysitterUrl { get; }
-    [DataMember] public string GitHash { get; }
-    [DataMember] public int PrId { get; }
-    [DataMember] public string PrUrl { get; }
-    [DataMember] public string PrTitle { get; }
-    [DataMember] public string PrAuthor { get; }
+    public string JobName { get; }
+    public string PlatformName { get; }
+    public int Id { get; }
+    public string Url { get; }
+    public string Result { get; }
+    public DateTime DateTime { get; }
+    public string BabysitterUrl { get; }
+    public string GitHash { get; }
+    public int PrId { get; }
+    public string PrUrl { get; }
+    public string PrTitle { get; }
+    public string PrAuthor { get; }
 
-    [DataMember] public List<FailedTest> FailedTests { get; }
-
-    // Needed for serialization, see http://stackoverflow.com/questions/10077121/datacontract-exception-cannot-be-serialized
-    public Build() {}
+    public List<FailedTest> FailedTests { get; }
 
     public Build(string jobName, string platformName, int id, string url, string result, DateTime dateTime, string babysitterUrl, string gitHash)
         : this(jobName, platformName, id, url, result, dateTime, babysitterUrl, gitHash, -1, null, null, null)
