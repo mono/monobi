@@ -92,7 +92,7 @@ public static HttpResponseMessage Run(HttpRequestMessage req, CancellationToken 
         }
     }
 
-    return req.CreateResponse(HttpStatusCode.OK, builds);
+    return req.CreateResponse<IEnumerable<Build>>(HttpStatusCode.OK, builds);
 }
 
 static IEnumerable<Build> GetMatrixBuilds(XElement xml, CancellationToken token, TraceWriter log)

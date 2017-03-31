@@ -67,5 +67,5 @@ public static HttpResponseMessage Run(HttpRequestMessage req, TraceWriter log)
         }
     }
 
-    return req.CreateResponse<List<Build>>(HttpStatusCode.OK, builds);
+    return req.CreateResponse<IEnumerable<Build>>(HttpStatusCode.OK, builds);
 }
