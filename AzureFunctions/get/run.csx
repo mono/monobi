@@ -1,5 +1,6 @@
 ﻿#r "System.Configuration"
 #r "System.Data"
+#r "Newtonsoft.Json"
 
 #load "../shared/Build.csx"
 #load "../shared/FailedTest.csx"
@@ -66,5 +67,5 @@ public static HttpResponseMessage Run(HttpRequestMessage req, TraceWriter log)
         }
     }
 
-    return req.CreateResponse<List<Build>>(HttpStatusCode.OK, builds, new JsonMediaTypeFormatter());
+    return req.CreateResponse<List<Build>>(HttpStatusCode.OK, builds);
 }
