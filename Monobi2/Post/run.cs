@@ -20,11 +20,7 @@ namespace Monobi2
         [FunctionName("Post")]
         public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req, TraceWriter log, CancellationToken token)
         {
-            string buildUrl = req.GetQueryNameValuePairs()
-                .FirstOrDefault(q => string.Compare(q.Key, "buildUrl", true) == 0)
-                .Value ?? "";
-
-            //string buildUrl = await req.Content.ReadAsStringAsync();
+            string buildUrl = await req.Content.ReadAsStringAsync();
             if (string.IsNullOrWhiteSpace(buildUrl))
                 return req.CreateResponse(HttpStatusCode.BadRequest, "missing \"buildUrl\" parameter");
 
