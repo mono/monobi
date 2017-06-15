@@ -1,9 +1,8 @@
-﻿
-using System;
+﻿using System;
 
 class FailedTest
 {
-    public string TestName { get; }
+	public string TestName { get; }
     public string Invocation { get; }
     public string Failure { get; }
     public int FinalCode { get; }
@@ -16,8 +15,8 @@ class FailedTest
         FinalCode = finalCode;
     }
 
-    public override string ToString()
-    {
-        return $"[FailedTest: TestName={TestName}, Invocation={Invocation}, Failure={Failure}, FinalCode={FinalCode}]";
+	public override string ToString()
+	{
+    	return $"[FailedTest: TestName={TestName}, Invocation={Invocation}, Failure={Failure}, FinalCode={FinalCode}]";
     }
 }
