@@ -20,17 +20,25 @@ namespace Monobi2
         {
             List<Build> builds = new List<Build>();
 
-            string earliestDate = "'1753-01-01'";
-            string latestDate = "'2100-01-01'";
+            string jobName = req.GetQueryNameValuePairs()
+                .FirstOrDefault(q => string.Compare(q.Key, "jobName", true) == 0)
+                .Value ?? "";
+            string platformName = req.GetQueryNameValuePairs()
+                .FirstOrDefault(q => string.Compare(q.Key, "platformName", true) == 0)
+                .Value ?? "";
+
+            string top = req.GetQueryNameValuePairs()
+                .FirstOrDefault(q => string.Compare(q.Key, "top", true) == 0)
+                .Value ?? "50";
 
             // parse query parameter
             string laterThan = req.GetQueryNameValuePairs()
                 .FirstOrDefault(q => string.Compare(q.Key, "laterThan", true) == 0)
-                .Value ?? earliestDate;
+                .Value ?? "1753-01-01";
 
             string olderThan = req.GetQueryNameValuePairs()
                 .FirstOrDefault(q => string.Compare(q.Key, "olderThan", true) == 0)
-                .Value ?? latestDate;
+                .Value ?? "";
 
             // Get request body
             //dynamic data = await req.Content.ReadAsAsync<object>();
@@ -65,9 +73,18 @@ namespace Monobi2
                     "    Builds.JobName = FailedTests.JobName " +
                     "AND Builds.PlatformName = FailedTests.PlatformName " +
                     "AND Builds.BuildId = FailedTests.BuildId " +
-                "WHERE Builds.DateTime > " + laterThan + " " +
-                    "AND Builds.DateTime < " + olderThan + " " +
-                "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId";
+
+                "WHERE Builds.DateTime > '" + laterThan + "' ";
+                if (olderThan != "")
+                    sqlQuery += "AND Builds.DateTime < '" + olderThan + "' ";
+                if (jobName != "")
+                    sqlQuery += "AND Builds.JobName = '" + jobName + "' ";
+                if (platformName != "")
+                    sqlQuery += "AND Builds.PlatformName = '" + platformName + "' ";
+
+                sqlQuery += "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId";
+
+                log.Warning("query:" + sqlQuery);
 
                 using (SqlCommand sqlCommand = new SqlCommand(
                 sqlQuery, sqlConnection))
