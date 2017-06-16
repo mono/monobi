@@ -243,3 +243,4 @@ ModelManifest.xml
 
 # Azure functions
 **/appsettings.json
+**/local.settings.json

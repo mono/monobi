@@ -51,6 +51,24 @@ namespace Monobi2
             {
                 await sqlConnection.OpenAsync();
 
+                SqlParameter[] sqlParameters = new SqlParameter[4];
+
+                sqlParameters[0] = new SqlParameter();
+                sqlParameters[0].ParameterName = "@laterThan";
+                sqlParameters[0].Value = laterThan;
+
+                sqlParameters[1] = new SqlParameter();
+                sqlParameters[1].ParameterName = "@olderThan";
+                sqlParameters[1].Value = olderThan;
+
+                sqlParameters[2] = new SqlParameter();
+                sqlParameters[2].ParameterName = "@jobName";
+                sqlParameters[2].Value = jobName;
+
+                sqlParameters[3] = new SqlParameter();
+                sqlParameters[3].ParameterName = "@platformName";
+                sqlParameters[3].Value = platformName;
+
                 string sqlQuery = "SELECT " +
                     "  Builds.JobName " +
                     ", Builds.PlatformName " +
@@ -74,20 +92,23 @@ namespace Monobi2
                     "AND Builds.PlatformName = FailedTests.PlatformName " +
                     "AND Builds.BuildId = FailedTests.BuildId " +
 
-                "WHERE Builds.DateTime > '" + laterThan + "' ";
+                "WHERE Builds.DateTime > @laterThan ";
                 if (olderThan != "")
-                    sqlQuery += "AND Builds.DateTime < '" + olderThan + "' ";
+                    sqlQuery += "AND Builds.DateTime < @olderThan ";
                 if (jobName != "")
-                    sqlQuery += "AND Builds.JobName = '" + jobName + "' ";
+                    sqlQuery += "AND Builds.JobName = @jobName ";
                 if (platformName != "")
-                    sqlQuery += "AND Builds.PlatformName = '" + platformName + "' ";
+                    sqlQuery += "AND Builds.PlatformName = @platformName ";
 
                 sqlQuery += "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId";
 
                 log.Warning("query:" + sqlQuery);
 
-                using (SqlCommand sqlCommand = new SqlCommand(
-                sqlQuery, sqlConnection))
+                SqlCommand sqlCommand = new SqlCommand(sqlQuery, sqlConnection);
+
+                sqlCommand.Parameters.AddRange(sqlParameters);
+
+                using (sqlCommand)
                 using (SqlDataReader sqlReader = await sqlCommand.ExecuteReaderAsync())
                 {
                     Build build = null;
