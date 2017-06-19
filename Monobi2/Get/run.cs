@@ -51,23 +51,12 @@ namespace Monobi2
             {
                 await sqlConnection.OpenAsync();
 
-                SqlParameter[] sqlParameters = new SqlParameter[4];
-
-                sqlParameters[0] = new SqlParameter();
-                sqlParameters[0].ParameterName = "@laterThan";
-                sqlParameters[0].Value = laterThan;
-
-                sqlParameters[1] = new SqlParameter();
-                sqlParameters[1].ParameterName = "@olderThan";
-                sqlParameters[1].Value = olderThan;
-
-                sqlParameters[2] = new SqlParameter();
-                sqlParameters[2].ParameterName = "@jobName";
-                sqlParameters[2].Value = jobName;
-
-                sqlParameters[3] = new SqlParameter();
-                sqlParameters[3].ParameterName = "@platformName";
-                sqlParameters[3].Value = platformName;
+                SqlParameter[] sqlParameters = new SqlParameter[] {
+                  new SqlParameter { ParameterName = "@laterThan", Value = laterThan },
+                  new SqlParameter { ParameterName = "@olderThan", Value = olderThan },
+                  new SqlParameter { ParameterName = "@jobName", Value = jobName },
+                  new SqlParameter { ParameterName = "@platformName", Value = platformName },
+                };
 
                 string sqlQuery = "SELECT " +
                     "  Builds.JobName " +
@@ -101,8 +90,6 @@ namespace Monobi2
                     sqlQuery += "AND Builds.PlatformName = @platformName ";
 
                 sqlQuery += "ORDER BY Builds.JobName, Builds.PlatformName, Builds.BuildId";
-
-                log.Warning("query:" + sqlQuery);
 
                 SqlCommand sqlCommand = new SqlCommand(sqlQuery, sqlConnection);
 
