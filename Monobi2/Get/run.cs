@@ -52,10 +52,10 @@ namespace Monobi2
                 await sqlConnection.OpenAsync();
 
                 SqlParameter[] sqlParameters = new SqlParameter[] {
-                  new SqlParameter { ParameterName = "@laterThan", Value = laterThan },
-                  new SqlParameter { ParameterName = "@olderThan", Value = olderThan },
-                  new SqlParameter { ParameterName = "@jobName", Value = jobName },
-                  new SqlParameter { ParameterName = "@platformName", Value = platformName },
+                    new SqlParameter { ParameterName = "@laterThan", Value = laterThan },
+                    new SqlParameter { ParameterName = "@olderThan", Value = olderThan },
+                    new SqlParameter { ParameterName = "@jobName", Value = jobName },
+                    new SqlParameter { ParameterName = "@platformName", Value = platformName },
                 };
 
                 string sqlQuery = "SELECT " +

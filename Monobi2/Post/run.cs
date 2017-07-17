@@ -92,7 +92,7 @@ namespace Monobi2
                     sqlTransaction.Commit();
                 }
             }
-            
+
             return req.CreateResponse(HttpStatusCode.OK, builds, "application/json");
 
             /*
@@ -234,24 +234,51 @@ namespace Monobi2
             XElement changeSet;
 
             changeSet = xml.Element("changeSet");
+            bool nullset = false;
+
             if (changeSet == null)
-                return null;
+                nullset = true;
 
             // Check if <changeSet _class="org.jenkinsci.plugins.multiplescms.MultiSCMChangeLogSet" /> exists
             if (!(changeSet.Attribute("_class")?.Value?.Equals("org.jenkinsci.plugins.multiplescms.MultiSCMChangeLogSet") ?? false))
-                return null;
+                nullset = true;
 
             // Check if <changeSet><item _class="hudson.plugins.git.GitChangeSet" /></changeSet> exists
             if (!(changeSet.Element("item")?.Attribute("_class")?.Value?.Equals("hudson.plugins.git.GitChangeSet") ?? false))
-                return null;
+                nullset = true;
 
-            // Return <changeSet><item><commitId /></item></changeSet>
-            return changeSet.Element("item").Element("commitId").Value;
+            if (nullset)
+            {
+                try
+                {
+                    string hash = GetLastBuiltRevision(xml);
+                    return hash;
+                }
+                catch (Exception e)
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                // Return <changeSet><item><commitId /></item></changeSet>
+                return changeSet.Element("item").Element("commitId").Value;
+            }
         }
 
         static string GetPrGitHash(XElement xml)
         {
             return GetPrField(xml, "ghprbActualCommit");
+        }
+
+        static string GetLastBuiltRevision(XElement xml)
+        {
+            IEnumerable<XElement> actions = xml.Elements("action");
+
+            // Check if <action _class="hudson.plugins.git.util.BuildData" /> exists
+            actions = actions.Where(a => a.Attribute("_class")?.Value?.Equals("hudson.plugins.git.util.BuildData") ?? false);
+
+            return actions.ElementAtOrDefault(0).Value;
         }
 
         static int GetPrId(XElement xml)
